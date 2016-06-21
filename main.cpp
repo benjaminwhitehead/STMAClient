@@ -40,7 +40,7 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "1.0.1";
+const std::string versionNumber = "1.1.0";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
@@ -71,6 +71,7 @@ int stop(void);
 int init(void);
 int download(std::string myurl, std::string outfilename);
 int modPath(std::string & filename);
+int fileIsWritable(std::string File);
 
 char serverLocation[512];
 char serverUpdate[512];
@@ -484,18 +485,38 @@ int getContent(std::string & content) {
 // downloadFile takes the local path file of the server only, not the XPlane path - ever.
 int downloadFile(std::string fileToDownload,std::string FileToSave) {
     // download a file from meteorbike
-   std::string serverLocationStr;
+    std::string serverLocationStr;
     std::stringstream concatStr;
     concatStr << serverLocation << "/" << serverPath << "/" << fileToDownload;
     serverLocationStr = concatStr.str();
-    debugOut("download update file from:");
-    debugOut(serverLocationStr);
-    //debugOut(FileToSave);
-    download(serverLocationStr, FileToSave);
-
+    
+    // check for local file whether it exists.  If the files doesn't exist, that's okay, 
+    // but if the folder does not exist, we can't create it, abort this file.
+    if (1 == fileIsWritable(FileToSave)) {
+        debugOut("download update file from:");
+        debugOut(serverLocationStr);
+        //debugOut(FileToSave);
+        download(serverLocationStr, FileToSave);
+    }
+    else {
+        debugOut("skipping.");
+    }
     return 0;
 
 }
+
+int fileIsWritable(std::string File) {
+    // is folder?
+    FILE *fp;
+    fp = fopen((char *)File.c_str(),"wb");
+    if (NULL == fp) {
+        debugOut("File Requested for Download is not writable (Folder does not exist).");
+        return 0;
+    }
+    else return 1;
+}
+
+
 int deleteFiles(void) {
     int doNotDownload = 0;
     for (int t=0;t<filelistUp.size();t++) {

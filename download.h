@@ -37,12 +37,14 @@ int download(std::string myurl, std::string outfilename)
 	if(curl)
 	{
 		fp = fopen((char *)outfilename.c_str(),"wb");
-		curl_easy_setopt(curl, CURLOPT_URL, (char *)myurl.c_str());
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-		res = curl_easy_perform(curl);
-		/* always cleanup */
-		curl_easy_cleanup(curl);
+        if (NULL != fp) {
+    		curl_easy_setopt(curl, CURLOPT_URL, (char *)myurl.c_str());
+    		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+    		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    		res = curl_easy_perform(curl);
+        }
+        /* always cleanup */
+        curl_easy_cleanup(curl);
 		fclose(fp);
 	}
     #endif
