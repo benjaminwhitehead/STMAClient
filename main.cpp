@@ -559,12 +559,18 @@ int checkReplacement(std::string & filename) {
         if (1 == isWindows) {
         // seems to be our thing.
         std::string tempName = filename;
-        tempName.append("__temp");
+        int thisPos = (int)filename.find("./STMAClient.exe");
+        //tempName.append("__temp");
+        tempName.insert(thisPos+12,"__old");
         debugOut("Updating Running Windows Executable.");
-        rename((char *)filename.c_str(),(char *)tempName.c_str());
+        //remove((char *)tempName.c_str());
         
-        filename.append("__temp"); // the download will be to __temp until we rename the download and then delete the old
+        // renaming a running executable might work, but can't figure it out.  RIght now, just download the new one
+        // and the plugin will replace this.
+        //rename((char *)filename.c_str(),(char *)tempName.c_str());
         
+        filename.insert(thisPos+12,"__tmp"); // the download will be to __temp until we rename the download and then delete the old
+        //remove((char *)filename.c_str());
         return 1; // needs replacment
         }
         else return 2; // Do Not Replace!
@@ -577,7 +583,7 @@ int checkReplacement(std::string & filename) {
         debugOut("Updating Running Executable.");
         rename((char *)filename.c_str(),(char *)tempName.c_str());
         
-        filename.append("__temp"); // the download will be to __temp until we rename the download and then delete the old
+        filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
         return 1; // needs replacment
         }
@@ -587,11 +593,11 @@ int checkReplacement(std::string & filename) {
         if (0 == isWindows) {
         // seems to be our thing.
         std::string tempName = filename;
-        tempName.append("__temp");
+        tempName.append("__tmp");
         debugOut("Updating Running Executable.");
         rename((char *)filename.c_str(),(char *)tempName.c_str());
         
-        filename.append("__temp"); // the download will be to __temp until we rename the download and then delete the old
+        filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
         return 1; // needs replacment
         }
@@ -627,7 +633,13 @@ int downloadFileList(void) {
             }
 
             if (1 == replaceThis) {
-                rename((char *)filename.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
+                debugOut("replacing running executable with downloaded executable temp");
+                int result = rename((char *)filename.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
+                if (0 == result) {debugOut("replaced file successfully");}
+                else {
+                    debugOut("Error replacing file tempname:",filename);
+                    debugOut("to new name:",newname);
+                }
                 //remove((char *)filename.c_str()); // delete the __tmp
             }
             
@@ -667,7 +679,7 @@ int createChangeList (void) {
     modPath(fileName);
     myfile.open(fileName);
     if (myfile.is_open()) {
-        myfile << "STMA AutoUpdate v1.1\n";
+        myfile << "STMA AutoUpdate v1.2\n";
         if (0 == updatesAvailable()) {
             myfile << "   Files are up to date.\n";
 
