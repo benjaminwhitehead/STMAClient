@@ -19,7 +19,7 @@
 //#include <boost/filesystem.hpp>
 //#include <boost/filesystem/fstream.hpp>
 //#include "boost.h"
-
+//#define DEBUG_KILL_XPL 1
 
 #if IBM
 	#include <direct.h>
@@ -40,13 +40,14 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "1.1.0";
+const std::string versionNumber = "1.65.01.01";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
 std::string arguments;
 
 std::string settingsFile;
+std::string optionsFile;
 std::string doNotAllowUpdates;  // tmp file created by plugin to indicate not to update.
 std::string fileListFile;
 std::string fileListUpFile;
@@ -72,13 +73,46 @@ int init(void);
 int download(std::string myurl, std::string outfilename);
 int modPath(std::string & filename);
 int fileIsWritable(std::string File);
-
+int renameTmpPlugins(std::string filename);
 char serverLocation[512];
 char serverUpdate[512];
 char serverPath[512];
 int allowUpdates = 0;
+bool allowXPLRename = true;
 int overrideAllowUpdates = 0;
 int test_dirs();
+inline bool exists (const std::string& name) {
+    if (FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        return true;
+    } else {
+        return false;
+    }   
+}
+int replaceExe(std::string filename, std::string filenameTo) {
+    // needed for Windows?  I think linux and mac work without this.
+    int returnVal = 0;
+    if (exists(filename)) {
+      returnVal = rename((char *)filename.c_str(),(char *)filenameTo.c_str());
+      if (returnVal != 0) {
+        // could not rename file
+        returnVal = 0;
+        returnVal = remove((char *)filenameTo.c_str());
+        if (returnVal != 0) {
+           // could not delete the file either.
+            returnVal = 0;
+        }
+        // try again with a file that doesn't exist now -- should be able to rename?
+        returnVal = rename((char *)filename.c_str(),(char *)filenameTo.c_str());
+      }
+      else {
+        returnVal = remove((char *)filename.c_str());
+      }
+      //remove((char *)winExecutableOldFile.c_str());
+    }
+    return returnVal;
+}
+
 
 int debugOut(char * text) {
 #if DEBUGS
@@ -104,6 +138,19 @@ int debugOut(std::string text) {
 #endif
     return 0;    
 }
+int debugOut(std::string text, int i) {
+#if DEBUGS
+    ofstream myfile;
+    myfile.open((char *)fileChangeList.c_str(), std::ofstream::out | std::ofstream::app);
+    if (myfile.is_open()) {
+                myfile << text << i << "\n";
+                 printf("%s\n",(char *)text.c_str() );
+   }
+    myfile.close();
+#endif
+    return 0;    
+}
+
 int debugOut(std::string text1, std::string text2) {
 #if DEBUGS
     ofstream myfile;
@@ -243,7 +290,7 @@ int writeFileList(std::string filename) {
 			oss << "," << filelistCrc[i];
 			string oss_s = oss.str();
 
-			debugOut(filelist[i],oss_s);
+			//debugOut(filelist[i],oss_s);
 			//debugOut("   crc = ", oss_s);
             myfile << filelist[i] << "," << filelistCrc[i] << "\n";
         }
@@ -257,24 +304,53 @@ int getOverride(std::string filename) {
     //strcpy(STMASettingsFile,"./settings.txt");
     ifstream myfile((char *)filename.c_str());
     int index = 0;
+    //debugOut("reading ",filename);
 
     //gSTMAPreferenceFile_ptr = fopen(STMASettingsFile,"r");
     if (myfile.is_open()) {
         while (! myfile.eof()) {
             int temp = 0;
             getline(myfile, line);
-            printf("reading doNotAllowUpdates file line=%s\n",(char *)line.c_str());
-            
-            int found = line.find_first_of(":");
-            if (found >0) {
+            //debugOut("line = ",line);
+            // get all various options here            
+            size_t found = line.find("doNotAllowUpdates:1");
+            //debugOut("found = ",found);
+            if (found != std::string::npos) {
+                //debugOut("doNotAllowUpdates:1 apparently found?");
                 allowUpdates = 0;
                 break;
             }
+
+
+            found = line.find("XPlaneExiting:0");
+            //debugOut("found = ",found);
+            if (found != std::string::npos) {
+                allowXPLRename = false;
+				//debugOut("found allowXPLRename = false");
+                break;
+            }
+            found = line.find("XPlaneExiting:1");
+            //debugOut("found = ",found);
+            if (found != std::string::npos) {
+                allowXPLRename = true;
+                //debugOut("found allowXPLRename = true");
+                break;
+            }
         }
+        //debugOut("out of while loop");
     }
-    else return -1;
-    //fclose(gSTMAPreferenceFile_ptr); 
+    else {
+        //debugOut("Could not open file",filename);
+        return -1;
+    }//fclose(gSTMAPreferenceFile_ptr); 
     myfile.close();
+
+	if (allowXPLRename == false) {
+		//debugOut("allowXPLRename = false");
+	}
+	else {
+		//debugOut("allowXPLRename = true");
+	}
     return 0;
 
 }
@@ -334,12 +410,12 @@ int ReadFileList(std::string filename )
         while (! myfile.eof()) {
             int temp = 0;
             getline(myfile, line);
-            debugOut("line in fileList = ",line);
+            //debugOut("line in fileList = ",line);
             
             if (line.length() > 0) {
                 int found = line.find_first_of(",");
                 
-                if (found >0) {
+                if (found > 0) {
                     //scanf(gSTMAPreferenceFile_ptr, "%[^,] %d", &PrefText, &crc);
                     // store in vector
                     //debugOut("found > 0\n");
@@ -354,6 +430,12 @@ int ReadFileList(std::string filename )
                     //oss << "Actual CRC = " << actualCrc;
                     //debugOut(oss.str());
                     filelistCrc.push_back(actualCrc);
+
+                    // Check for this file being a plugin, and if there is an __tmp version of it that we need
+                    // to rename.  We assume that X-Plane is re-loading at this point (X-Plane downloaded tmp versions,
+                    // and it's only the 2nd run of this that those versions are renamed while X-Plane is re-loading).
+                    renameTmpPlugins(sTemp);
+
                 }
                 else {
                     if (line.length() > 0) {
@@ -374,6 +456,7 @@ int ReadFileList(std::string filename )
 
                     }
                 }
+            
             }
         }
     }
@@ -383,6 +466,39 @@ int ReadFileList(std::string filename )
     myfile.close();
     return 0;
 }
+
+int renameTmpPlugins(std::string filename) {
+    std::string tempFilename = filename;
+    std::string replaceFilename = filename;
+    bool xplNeedsReplace = false;
+	//debugOut("renameTmpPlugins",filename);
+	if (filename.find(".xpl") != std::string::npos) {
+        int thisPos = (int)filename.find(".xpl");
+        tempFilename.insert(thisPos,"__tmp");
+        xplNeedsReplace = true;
+		//debugOut("found xpl file", tempFilename);
+	}
+    // now look to see if tempName exists
+    modPath(tempFilename);
+    modPath(replaceFilename);
+    if (exists(tempFilename) && true == xplNeedsReplace && true == allowXPLRename) {
+        // the file exists, which means we need to delete the actual file and rename this one
+        int watchDog = 0;
+        const int max = 25000;
+        
+        debugOut("Rename temp plugins, found: ",tempFilename);
+        debugOut("Sitting in while loop until xpl can be replaced...");
+        while (watchDog < max) {
+            if (0 == replaceExe(tempFilename,replaceFilename)) break;;
+            watchDog++;
+        }
+        debugOut("finished loop, watchdog = ",watchDog);
+    }
+
+    return 0;
+
+}
+
 int ReadFileListUp(std::string filename )
 {
    std::string line;
@@ -579,7 +695,7 @@ int checkReplacement(std::string & filename) {
         if (2 == isWindows) {
         // seems to be our thing.
         std::string tempName = filename;
-        tempName.append("__temp");
+        tempName.append("__tmp");
         debugOut("Updating Running Executable.");
         rename((char *)filename.c_str(),(char *)tempName.c_str());
         
@@ -603,6 +719,20 @@ int checkReplacement(std::string & filename) {
         }
         else return 2;
     }
+    else if (filename.find(".xpl") != std::string::npos) {
+        int thisPos = (int)filename.find(".xpl");
+        filename.insert(thisPos,"__tmp");
+        return 0;
+    }
+    else if (filename.find(".dll") != std::string::npos) {
+        if (1==isWindows) {
+        int thisPos = (int)filename.find(".xpl");
+        filename.insert(thisPos,"__tmp");
+        return 0;
+        }
+        else return 2; // do not replace if not windows
+    }
+
     return 0;
 
 }
@@ -624,7 +754,7 @@ int downloadFileList(void) {
             modPath(newname);
 
             int replaceThis = checkReplacement(filename);
-
+            debugOut("checkReplacement returned filename: ",filename);
             if (replaceThis < 2) { // do not download if replace comes back with a 2 - that's a file we don't touch in this OS -- BECAUSE downloading it will change permissions to not executable.  
                 //  Really, that's not a huge deal because most people only run one OS 
                 //-but I run both and in the same folder, so that would be a problem.
@@ -799,6 +929,8 @@ int initFileNames(int first) {
 
     // determine where this was started, from X-Plane, or locally.
     if (1 == XPlane && 0 == first) {
+        optionsFile = arguments;
+        optionsFile.append("options.json");
         doNotAllowUpdates=arguments;
         doNotAllowUpdates.append("doNotAllowUpdates.txt");
         settingsFile=arguments;
@@ -809,6 +941,8 @@ int initFileNames(int first) {
         fileListUpFile.append("fileListUp.txt");
     }
     else {
+        optionsFile = arguments;
+        optionsFile.append("./options.json");
         doNotAllowUpdates ="./doNotAllowUpdates.txt";
         settingsFile="./settings.txt";
         fileListFile="./fileList.txt";
@@ -829,8 +963,8 @@ int initChangeFile(int first) {
 	}
     fileChangeList = fileName;
     //modPath(fileName);
-    if (remove((char *)fileName.c_str()) != 0) { ; }
     if (first) {
+    if (remove((char *)fileName.c_str()) != 0) { ; }
 //#ifdef DEBUG_ONLY
 		myfile.open(fileName);
         if (myfile.is_open()) {
@@ -842,13 +976,13 @@ int initChangeFile(int first) {
 
 
     if (first) {
-    if (1 == XPlane) {
-        fileFinalChangeList = arguments;
-        fileFinalChangeList.append("./updateStatus.txt");
-    }
-    else {
-        fileFinalChangeList.append("./updateStatus.txt");        
-    }
+        if (1 == XPlane) {
+            fileFinalChangeList = arguments;
+            fileFinalChangeList.append("./updateStatus.txt");
+        }
+        else {
+            fileFinalChangeList.append("./updateStatus.txt");        
+        }
     }
 
     return 0;
@@ -944,11 +1078,24 @@ int cleanup(void) {
             //debugOut("Error deleting file");
         //else
             //debugOut("File successfully deleted");
+    remove((char *)optionsFile.c_str());
+    remove((char *)doNotAllowUpdates.c_str());
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
+    // DEBUG stuff goes here
+    #ifdef DEBUG_KILL_XPL
+    // try to remove the running, or not, win.xpl and see what happens.
+    renameTmpPlugins("plugins\\STMA_AutoUpdate\\64\\win.xpl");
+
+
+
+    exit(0);
+    #endif
+
+    debugOut("STMAClient main");
     // pre-init to dump the path on the cmd line
     initFileNames(1);
     initChangeFile(1);
@@ -983,8 +1130,10 @@ int main(int argc, char *argv[])
         debugOut("could not open settings file:",settingsFile);
     }
     getOverride(doNotAllowUpdates);
+    getOverride(optionsFile);
+
     initChangeFile(0);
-    debugOut("Started on PC ver3 this time.");
+    debugOut("STMAClient Version:",versionNumber);
 
     if (getFileList() < 0) {
         debugOut("could not get filelist");
