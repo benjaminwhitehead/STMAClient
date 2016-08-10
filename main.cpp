@@ -40,7 +40,7 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "1.65.01.01";
+const std::string versionNumber = "Aspen";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
@@ -596,8 +596,10 @@ int getContent(std::string & content) {
 
     printf("content=%s",(char *)content.c_str());
 
-    return 0;
-}
+    return 0;  // this
+} 
+
+
 // downloadFile takes the local path file of the server only, not the XPlane path - ever.
 int downloadFile(std::string fileToDownload,std::string FileToSave) {
     // download a file from meteorbike
@@ -615,7 +617,8 @@ int downloadFile(std::string fileToDownload,std::string FileToSave) {
         download(serverLocationStr, FileToSave);
     }
     else {
-        debugOut("skipping.");
+        debugOut("File is not writable ... :",FileToSave);
+        //download(serverLocationStr, FileToSave);
     }
     return 0;
 
@@ -626,10 +629,13 @@ int fileIsWritable(std::string File) {
     FILE *fp;
     fp = fopen((char *)File.c_str(),"wb");
     if (NULL == fp) {
-        debugOut("File Requested for Download is not writable (Folder does not exist).");
+        debugOut("File Requested for Download is not writable (Folder does not exist?):",File);
         return 0;
     }
-    else return 1;
+    else {
+        fclose(fp);
+        return 1;
+    }
 }
 
 
@@ -694,10 +700,10 @@ int checkReplacement(std::string & filename) {
     else if (filename.find("./STMAClientLin") != std::string::npos) {
         if (2 == isWindows) {
         // seems to be our thing.
-        std::string tempName = filename;
-        tempName.append("__tmp");
-        debugOut("Updating Running Executable.");
-        rename((char *)filename.c_str(),(char *)tempName.c_str());
+        //std::string tempName = filename;
+        //tempName.append("__tmp");
+        //debugOut("Updating Running Executable.");
+        //rename((char *)filename.c_str(),(char *)tempName.c_str());
         
         filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
@@ -708,10 +714,10 @@ int checkReplacement(std::string & filename) {
     else if (filename.find("./STMAClient") != std::string::npos) {
         if (0 == isWindows) {
         // seems to be our thing.
-        std::string tempName = filename;
-        tempName.append("__tmp");
-        debugOut("Updating Running Executable.");
-        rename((char *)filename.c_str(),(char *)tempName.c_str());
+        //std::string tempName = filename;
+        //tempName.append("__tmp");
+        //debugOut("Updating Running Executable.");
+        //rename((char *)filename.c_str(),(char *)tempName.c_str());
         
         filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
@@ -762,16 +768,29 @@ int downloadFileList(void) {
                 downloadFile(fileListDownload[t],filename);
             }
 
-            if (1 == replaceThis) {
-                debugOut("replacing running executable with downloaded executable temp");
-                int result = rename((char *)filename.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
-                if (0 == result) {debugOut("replaced file successfully");}
-                else {
-                    debugOut("Error replacing file tempname:",filename);
-                    debugOut("to new name:",newname);
-                }
-                //remove((char *)filename.c_str()); // delete the __tmp
-            }
+            // SINCE we no longer try to replace running executable, we let STMAClient replace win.xpl's (only if options.json says XPLane is exiting),
+            // and we let win.xpls replace STMAClients.
+            //if (1 == replaceThis) {
+            //    debugOut("replacing running executable with downloaded executable temp:",filename);
+            //    if (exists(filename)) {
+            //        if (exists(newname)) {
+            //            
+            //        }
+            //        else {
+            //            debugOut("target file does not exist (or is not readable - running exe?):",newname);
+            //        }
+            //    }
+            //    else {
+            //        debugOut("__tmp file does not exist:",filename);
+            //    }
+            //    int result = rename((char *)filename.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
+            //    if (0 == result) {debugOut("replaced file successfully");}
+            //    else {
+            //        debugOut("Error replacing file tempname:",filename);
+            //        debugOut("to new name:",newname);
+            //    }
+            //    //remove((char *)filename.c_str()); // delete the __tmp
+            //}
             
             //debugOut("newname = ",newname);
         }
