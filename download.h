@@ -3,6 +3,9 @@
 #if 1
 #include <stdio.h>
 
+#define HTTP_ONLY
+#define CURL_STATICLIB
+
 #include <curl/curl.h>
 #include <curl/easy.h>
 
@@ -26,6 +29,15 @@ int stop(void) {
 //	curl_global_cleanup();
 	return 0;
 }
+int replaceSpaces(std::string & myString) {
+    for (size_t pos = myString.find(' '); 
+         pos != std::string::npos;
+     pos = myString.find(' ', pos))
+    {
+        myString.replace(pos, 1, "%20");
+    }
+    return 0;
+}
 int download(std::string myurl, std::string outfilename)
 {
     #if 1
@@ -34,6 +46,9 @@ int download(std::string myurl, std::string outfilename)
 	CURLcode res;
 	//char *url = "http://localhost/aaa.txt";
 	//char outfilename[FILENAME_MAX] = "C:\\bbb.txt";
+
+    replaceSpaces(myurl);
+
 	curl = curl_easy_init();
 	if(curl)
 	{

@@ -13,6 +13,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <locale>
 #include <fstream>
 #include <vector>
 
@@ -40,7 +41,7 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "Aspen";
+const std::string versionNumber = "Cottonwood";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
@@ -120,7 +121,7 @@ int debugOut(char * text) {
     myfile.open((char *)fileChangeList.c_str(), std::ofstream::out | std::ofstream::app);
     if (myfile.is_open()) {
                 myfile << text << "\n";
-                printf("%s\n",text );
+                printf("%s\r\n",text );
     }
     myfile.close();
 #endif
@@ -132,7 +133,7 @@ int debugOut(std::string text) {
     myfile.open((char *)fileChangeList.c_str(), std::ofstream::out | std::ofstream::app);
     if (myfile.is_open()) {
                 myfile << text << "\n";
-                 printf("%s\n",(char *)text.c_str() );
+                 printf("%s\r\n",(char *)text.c_str() );
    }
     myfile.close();
 #endif
@@ -144,7 +145,7 @@ int debugOut(std::string text, int i) {
     myfile.open((char *)fileChangeList.c_str(), std::ofstream::out | std::ofstream::app);
     if (myfile.is_open()) {
                 myfile << text << i << "\n";
-                 printf("%s\n",(char *)text.c_str() );
+                 printf("%s\r\n",(char *)text.c_str() );
    }
     myfile.close();
 #endif
@@ -162,7 +163,7 @@ int debugOut(std::string text1, std::string text2) {
 
     if (myfile.is_open()) {
                 myfile << output << "\n";
-                printf("%s\n",(char *)output.c_str() );
+                printf("%s\r\n",(char *)output.c_str() );
     }
     myfile.close();
 #endif
@@ -618,6 +619,7 @@ int downloadFile(std::string fileToDownload,std::string FileToSave) {
     }
     else {
         debugOut("File is not writable ... :",FileToSave);
+
         //download(serverLocationStr, FileToSave);
     }
     return 0;
@@ -660,6 +662,9 @@ int deleteFiles(void) {
                     debugOut("Error deleting file");
                 else
                     debugOut("File successfully deleted");
+
+                // add to ignore list so we don't try to re-download it in next steps.
+                ignoreList.push_back(fileListUp[t]);
              }
             else doNotDownload = 0; // reset
         }
@@ -676,6 +681,11 @@ int checkReplacement(std::string & filename) {
     #else
     const int isWindows = 0;
     #endif
+    std::string filenameLowerCase = filename;
+    std::locale loc;
+    for (std::string::size_type i=0; i<filename.length(); ++i) {
+        filenameLowerCase[i] = std::tolower(filenameLowerCase[i],loc);
+    }
 
     if (filename.find("./STMAClient.exe") != std::string::npos) {
         if (1 == isWindows) {
@@ -696,6 +706,27 @@ int checkReplacement(std::string & filename) {
         return 1; // needs replacment
         }
         else return 2; // Do Not Replace!
+    }
+    else if (filenameLowerCase.find(".dll") != std::string::npos) {
+        if (1 == isWindows) {
+        // seems to be our thing.
+        std::string tempName = filename;
+        int thisPos = (int)filenameLowerCase.find(".dll");
+        //tempName.append("__temp");
+        tempName.insert(thisPos,"__old");
+        debugOut("Updating Running Windows dll.");
+        //remove((char *)tempName.c_str());
+        
+        // renaming a running executable might work, but can't figure it out.  RIght now, just download the new one
+        // and the plugin will replace this.
+        //rename((char *)filename.c_str(),(char *)tempName.c_str());
+        
+        filename.insert(thisPos,"__tmp"); // the download will be to __temp until we rename the download and then delete the old
+        //remove((char *)filename.c_str());
+        return 1; // needs replacment
+        }
+        else return 2; // Do Not Replace!
+
     }
     else if (filename.find("./STMAClientLin") != std::string::npos) {
         if (2 == isWindows) {
@@ -755,6 +786,10 @@ int downloadFileList(void) {
         if (doNotDownload == 0) {
             std::string filename = fileListDownload[t];
             std::string newname = filename;
+            //std::string oldname = filename;
+
+            //modPath(oldname);
+            //oldname.append("__old");
             // special case where the downloaded file is this executable
             modPath(filename);
             modPath(newname);
@@ -768,8 +803,25 @@ int downloadFileList(void) {
                 downloadFile(fileListDownload[t],filename);
             }
 
-            // SINCE we no longer try to replace running executable, we let STMAClient replace win.xpl's (only if options.json says XPLane is exiting),
-            // and we let win.xpls replace STMAClients.
+            #if 0
+            // try to download the tmp, (just did), now delete the current exe and rename the tmp to this one.
+            int removeResult = unlink((char *)newname.c_str());
+            if (0==removeResult) {
+                debugOut("removed self.\n");
+            }
+            else {
+                debugOut("could not delete self.\n");
+            }
+            int result = rename((char *)filename.c_str(),(char *)newname.c_str());
+            if (0==result) {
+                debugOut("successfully replaced runnning Linux executable\n");
+            }
+            else {
+                debugOut("could not replace Linux exe");
+
+            }
+            #endif
+
             //if (1 == replaceThis) {
             //    debugOut("replacing running executable with downloaded executable temp:",filename);
             //    if (exists(filename)) {
@@ -783,12 +835,18 @@ int downloadFileList(void) {
             //    else {
             //        debugOut("__tmp file does not exist:",filename);
             //    }
-            //    int result = rename((char *)filename.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
-            //    if (0 == result) {debugOut("replaced file successfully");}
-            //    else {
-            //        debugOut("Error replacing file tempname:",filename);
-            //        debugOut("to new name:",newname);
-            //    }
+            //    //int result = rename((char *)newname.c_str(),(char *)oldname.c_str());
+            //    //if (0 == result) {debugOut("renamed running executable to __old");}
+            //    
+            //    //result = rename((char *)filename.c_str(),(char *)oldname.c_str());  // rename __temp to normal filename
+            //    //if (0 == result) {debugOut("renamed tmp to oldname successfully");}
+            //    
+            //    //result = rename((char *)oldname.c_str(),(char *)newname.c_str());  // rename __temp to normal filename
+            //    //if (0 == result) {debugOut("renamed tmp to oldname successfully");}
+            //    //else {
+            //    //    debugOut("Error replacing file tempname:",filename);
+            //    //    debugOut("to new name:",newname);
+            //    //}
             //    //remove((char *)filename.c_str()); // delete the __tmp
             //}
             
