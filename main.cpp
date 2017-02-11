@@ -41,7 +41,7 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "Cottonwood";
+const std::string versionNumber = "Cottonwood.1";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
@@ -664,7 +664,7 @@ int deleteFiles(void) {
                     debugOut("File successfully deleted");
 
                 // add to ignore list so we don't try to re-download it in next steps.
-                ignoreList.push_back(fileListUp[t]);
+                ignoreList.push_back(filelistUp[t]);
              }
             else doNotDownload = 0; // reset
         }
@@ -780,8 +780,8 @@ int downloadFileList(void) {
         for (int w=0;w<ignoreList.size();w++) {
             if (fileListDownload[t].compare(ignoreList[w]) == 0) {
                 doNotDownload = 1;
+                break;
             }
-            break;
         }
         if (doNotDownload == 0) {
             std::string filename = fileListDownload[t];
