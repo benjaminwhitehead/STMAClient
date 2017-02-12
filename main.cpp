@@ -41,7 +41,7 @@ using namespace std;
 
 
 //typedef std::string string;
-const std::string versionNumber = "Cottonwood.1";
+const std::string versionNumber = "Cottonwood.2";
 FILE *  gSTMAPreferenceFile_ptr;
 
 // set these according to OS
@@ -750,7 +750,9 @@ int checkReplacement(std::string & filename) {
         //debugOut("Updating Running Executable.");
         //rename((char *)filename.c_str(),(char *)tempName.c_str());
         
-        filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
+        // DEBUG:: attempting to do what the comments say, which is to download directly over itself.
+        // DEBUG::   it says that's the only way mac will allow you to overwrite an executable is if the exe itself does it.
+        //filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
         return 1; // needs replacment
         }
