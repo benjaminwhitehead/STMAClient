@@ -735,8 +735,10 @@ int checkReplacement(std::string & filename) {
         //tempName.append("__tmp");
         //debugOut("Updating Running Executable.");
         //rename((char *)filename.c_str(),(char *)tempName.c_str());
-        
-        filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
+
+        // DEBUG:: attempting to do what the comments say, which is to download directly over itself.
+        // DEBUG::   it says that's the only way mac will allow you to overwrite an executable is if the exe itself does it.       
+        //filename.append("__tmp"); // the download will be to __temp until we rename the download and then delete the old
         
         return 1; // needs replacment
         }
